@@ -1,0 +1,40 @@
+/* 📱 Responsive fixes for small screens */
+@media (max-width: 600px) {
+  .table-ui {
+    width: 100%;
+    height: auto;            /* allow height to grow with content */
+  }
+  .hud {
+    flex-wrap: wrap;         /* allow wrapping */
+    justify-content: center; /* center elements when wrapped */
+    gap: 8px;                /* spacing between wrapped items */
+  }
+  .bet-controls {
+    flex-wrap: wrap;         /* wrap quick-bet buttons and input */
+    justify-content: center; /* center buttons */
+    gap: 6px;
+  }
+  .bet-controls input[type=number] {
+    width: 60px;             /* narrower input for small screens */
+  }
+  .btn {
+    padding: 6px 10px;       /* slightly smaller buttons */
+  }
+  .dealer-area {
+    top: 140px;              /* push dealer cards down if HUD wraps */
+  }
+  .players {
+    bottom: 20px;
+    flex-wrap: wrap;         /* let seats wrap if screen is narrow */
+    gap: 12px;
+  }
+  .seat {
+    width: 90px;             /* smaller seats/cards */
+    height: 120px;
+  }
+  .card {
+    width: 50px;
+    height: 70px;
+    font-size: 14px;
+  }
+}
