@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Blackjack</title>
+  <style>
+    :root{
+      --table-bg: url('/mnt/data/GreenBlackjackRolloutMat.png');
+      --accent: #d6b24a;
+      --accent-dark: #a67d21;
+      --card-white: #fffdf8;
+      --text: #f5f5f5;
+      --shadow: rgba(0,0,0,0.45);
+      --glass: rgba(255,255,255,0.06);
+    }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;font-size:16px;color:var(--text)}
+    .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:30px;background:#0b5c32;background-image:var(--table-bg);background-size:cover;background-position:center;}
+    .table-ui{width:1100px;max-width:96vw;height:520px;background:transparent;position:relative;border-radius:18px;box-shadow:0 10px 30px var(--shadow);}
+    .hud{position:absolute;top:18px;left:18px;right:18px;display:flex;justify-content:space-between;align-items:center}
+    .bank,.bet-controls{backdrop-filter:blur(6px);background:var(--glass);padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06)}
+    .bank b{display:block;font-size:18px}
+    .bet-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .bet-controls input[type=number]{width:80px;padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.2);background:rgba(255,255,255,0.9);color:#111}
+    .btn{padding:6px 12px;border-radius:8px;border:none;background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#111;font-weight:700;cursor:pointer}
+    .btn:disabled{opacity:0.45;cursor:default}
+    .dealer-area{position:absolute;top:92px;left:0;right:0;text-align:center}
+    .dealer-cards{display:inline-flex;gap:12px;align-items:center}
+    .dealer-total{margin-top:8px;color:#d6b24a;font-weight:700;}
+    .players{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);display:flex;gap:22px}
+    .seat{width:120px;height:150px;padding:8px;border-radius:10px;background:rgba(0,0,0,0.12);display:flex;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+    .seat.inactive{opacity:0.45}
+    .cards{display:flex;gap:8px}
+    .card{width:68px;height:94px;border-radius:8px;background:var(--card-white);box-shadow:0 6px 12px rgba(0,0,0,0.35);display:flex;flex-direction:column;justify-content:space-between;padding:6px;font-weight:700;color:#111}
+    .card.red .suit,.card.red .rank{color:#b71c1c}
+    .card .rank{font-size:16px}
+    .card .suit{font-size:18px;text-align:right}
+    .card.back{background:linear-gradient(180deg,#1b7b45,#135d34);color:transparent;box-shadow:inset 0 0 0 3px rgba(255,255,255,0.03)}
+    .controls{position:absolute;right:18px;bottom:120px;display:flex;flex-direction:column;gap:8px}
+    .controls .btn-large{padding:12px 20px;font-size:16px}
+    .msg{position:absolute;bottom:-80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);padding:10px 16px;border-radius:10px}
+    .blackjack-overlay,.result-overlay{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:999;align-items:center;justify-content:center;animation:fadeIn 0.5s ease-in-out forwards;}
+    .blackjack-text{font-size:72px;font-weight:900;color:#ffd700;text-shadow:0 0 20px #ff8c00,0 0 40px #ff4500,0 0 60px #ff0000;padding:20px 40px;border:5px solid #ffd700;border-radius:20px;background:rgba(0,0,0,0.5);}
+    @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="table-ui" id="table">
+      <div class="hud">
+        <div class="bank">
+          <div>Bank</div>
+          <b id="bankValue">$1000</b>
+        </div>
+        <div class="bet-controls">
+          <label style="font-size:13px;color:#fff;margin-right:6px">Bet</label>
+          <input id="betInput" type="number" min="1" value="25" />
+          <button id="placeBet" class="btn">Place Bet</button>
+          <div style="display:flex;gap:6px;margin-left:12px;">
+            <button class="btn quick-bet" data-amount="25">$25</button>
+            <button class="btn quick-bet" data-amount="50">$50</button>
+            <button class="btn quick-bet" data-amount="100">$100</button>
+            <button class="btn quick-bet" data-amount="500">$500</button>
+            <button class="btn quick-bet" data-amount="1000">$1000</button>
+          </div>
+          <button id="resetBank" style="background:#333;color:var(--text);border-radius:8px;padding:8px 10px">Reset $1000</button>
+        </div>
+      </div>
+      <div class="dealer-area">
+        <div style="color:var(--accent);font-weight:800;letter-spacing:2px;margin-bottom:8px">DEALER</div>
+        <div class="dealer-cards" id="dealerCards"></div>
+        <div class="dealer-total" id="dealerTotal"></div>
+      </div>
+      <div class="players" id="players"></div>
+      <div class="controls">
+        <button id="hitBtn" class="btn btn-large" disabled>Hit</button>
+        <button id="standBtn" class="btn btn-large" disabled>Stand</button>
+        <button id="doubleBtn" class="btn btn-large" disabled>Double</button>
+      </div>
+      <div class="msg" id="message">Place your bet to start.</div>
+      <div class="blackjack-overlay" id="blackjackOverlay"><div class="blackjack-text">BLACKJACK!</div></div>
+      <div class="result-overlay" id="resultOverlay"><div class="blackjack-text" id="resultText"></div></div>
+    </div>
+  </div>
+  <script>
+    const START_BANK=1000;
+    let bank=START_BANK,bet=0,deck=[],dealer={cards:[],hidden:null},player={cards:[],settled:false},inRound=false;
+    const bankValue=document.getElementById('bankValue'),betInput=document.getElementById('betInput'),
+    placeBet=document.getElementById('placeBet'),dealerCardsEl=document.getElementById('dealerCards'),
+    dealerTotalEl=document.getElementById('dealerTotal'),playersEl=document.getElementById('players'),
+    hitBtn=document.getElementById('hitBtn'),standBtn=document.getElementById('standBtn'),doubleBtn=document.getElementById('doubleBtn'),
+    resetBank=document.getElementById('resetBank'),message=document.getElementById('message'),
+    blackjackOverlay=document.getElementById('blackjackOverlay'),resultOverlay=document.getElementById('resultOverlay'),
+    resultText=document.getElementById('resultText');
+
+    function showResultOverlay(text){resultText.textContent=text;resultOverlay.style.display='flex';setTimeout(()=>{resultOverlay.style.display='none';},2000);}
+    function createSeats(){playersEl.innerHTML='';for(let i=0;i<5;i++){const seat=document.createElement('div');seat.className='seat'+(i===2?'':' inactive');seat.innerHTML=`<div class="cards" data-seat="${i}"></div><div style="margin-top:6px;font-size:13px" data-total></div>`;playersEl.appendChild(seat);}}
+    createSeats();
+
+    function newDeck(){const suits=['♠','♥','♦','♣'],ranks=['A','2','3','4','5','6','7','8','9','10','J','Q','K'],d=[];for(const s of suits){for(const r of ranks){const value=(r==='A')?11:(['J','Q','K'].includes(r)?10:parseInt(r));d.push({suit:s,rank:r,value:value});}}for(let i=d.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];}return d;}
+
+    function resetRound(){inRound=false;bet=0;dealer.cards=[];dealer.hidden=null;player.cards=[];player.settled=false;dealerCardsEl.innerHTML='';dealerTotalEl.textContent='';document.querySelectorAll('[data-total]').forEach(el=>el.textContent='');document.querySelectorAll('.seat .cards').forEach(el=>el.innerHTML='');blackjackOverlay.style.display='none';hitBtn.disabled=true;standBtn.disabled=true;doubleBtn.disabled=true;}
+    function updateBank(){bankValue.textContent=`$${bank.toFixed(2)}`;}updateBank();
+    function draw(){if(deck.length===0)deck=newDeck();return deck.pop();}
+    function renderCard(card,hidden=false){const el=document.createElement('div');el.className='card'+(hidden?' back':(card.suit==='♥'||card.suit==='♦'?' red':''));if(!hidden){el.innerHTML=`<div class="rank">${card.rank}</div><div class="suit">${card.suit}</div>`;}return el;}
+    function handTotal(cards){let total=cards.reduce((s,c)=>s+(c.value),0),aces=cards.filter(c=>c.rank==='A').length;while(total>21&&aces>0){total-=10;aces--;}return total;}
+    function showHands(){dealerCardsEl.innerHTML='';dealer.cards.forEach((c,i)=>{dealerCardsEl.appendChild(renderCard(c,i===0&&dealer.hidden));});const centerCards=document.querySelectorAll('.seat')[2].querySelector('.cards');centerCards.innerHTML='';player.cards.forEach(c=>centerCards.appendChild(renderCard(c)));document.querySelectorAll('[data-total]')[2].textContent=`Total: ${handTotal(player.cards)}`;dealerTotalEl.textContent=dealer.hidden?`Dealer total: ?`:`Dealer total: ${handTotal(dealer.cards)}`;}
+    function showBlackjack(){blackjackOverlay.style.display='flex';setTimeout(()=>{blackjackOverlay.style.display='none';},2000);}
+      function endRound() {
+    dealer.hidden = false;
+    showHands();
+
+    const pTotal = handTotal(player.cards);
+    let dTotal = handTotal(dealer.cards);
+
+    while (dTotal < 17) {
+      dealer.cards.push(draw());
+      dTotal = handTotal(dealer.cards);
+    }
+    showHands();
+
+    // --- 40% fixed chance to force a win ---
+    const winChance = Math.random();
+    const forceWin = winChance < 0.40; // 40%
+
+    let result = '';
+    if (forceWin) {
+      bank += bet;
+      result = `Lucky break! You win $${bet.toFixed(2)} (40% forced win)`;
+      showResultOverlay('YOU WIN!');
+    } else {
+      const playerBJ = (player.cards.length === 2 && pTotal === 21);
+      const dealerBJ = (dealer.cards.length === 2 && dTotal === 21);
+
+      if (playerBJ && !dealerBJ) {
+        bank += bet * 1.5;
+        result = `Blackjack! You win $${(bet * 1.5).toFixed(2)}`;
+        showBlackjack();
+      } else if (!playerBJ && dealerBJ) {
+        bank -= bet;
+        result = `Dealer has Blackjack. You lose.`;
+        showResultOverlay('YOU LOSE!');
+      } else if (pTotal > 21) {
+        bank -= bet;
+        result = `Busted! You lose $${bet.toFixed(2)}`;
+        showResultOverlay('YOU LOSE!');
+      } else if (dTotal > 21) {
+        bank += bet;
+        result = `Dealer busted — you win $${bet.toFixed(2)}`;
+        showResultOverlay('YOU WIN!');
+      } else if (pTotal > dTotal) {
+        bank += bet;
+        result = `You win $${bet.toFixed(2)}`;
+        showResultOverlay('YOU WIN!');
+      } else if (pTotal < dTotal) {
+        bank -= bet;
+        result = `You lose $${bet.toFixed(2)}`;
+        showResultOverlay('YOU LOSE!');
+      } else {
+        result = `Push — bet returned.`;
+        showResultOverlay('PUSH!');
+      }
+    }
+
+    inRound = false;
+    hitBtn.disabled = true;
+    standBtn.disabled = true;
+    doubleBtn.disabled = true;
+    updateBank();
+    message.textContent = `${result} — Bank: $${bank.toFixed(2)}`;
+
+    if (bank <= 0) {
+      message.textContent += ' — You are broke. Press Reset $1000 to play again.';
+    }
+  }
+    placeBet.addEventListener('click',()=>{const val=Math.floor(Number(betInput.value));if(!val||val<=0){alert('Bet must be positive.');return;}if(val>bank){alert('You cannot bet more than your bank.');return;}if(inRound){alert('Round in progress.');return;}bet=val;startRound();});
+    document.querySelectorAll('.quick-bet').forEach(btn=>{btn.addEventListener('click',()=>{betInput.value=btn.dataset.amount;placeBet.click();});});
+    function startRound(){inRound=true;deck=newDeck();dealer.cards=[];player.cards=[];dealer.hidden=true;dealer.cards.push(draw());player.cards.push(draw());dealer.cards.push(draw());player.cards.push(draw());showHands();message.textContent='Round started — your move.';hitBtn.disabled=false;standBtn.disabled=false;doubleBtn.disabled=(bank<bet*2);}
+    hitBtn.addEventListener('click',()=>{if(!inRound)return;player.cards.push(draw());showHands();if(handTotal(player.cards)>21){endRound();}});
+    standBtn.addEventListener('click',()=>{if(!inRound)return;endRound();});
+    doubleBtn.addEventListener('click',()=>{if(!inRound)return;if(bank<bet*2){alert('Not enough to double');return;}bank-=bet;bet=bet*2;player.cards.push(draw());showHands();endRound();});
+    resetBank.addEventListener('click',()=>{bank=START_BANK;updateBank();resetRound();message.textContent='Bank reset. Place your bet to start.';});
+    window.addEventListener('keydown',(e)=>{if(e.key==='h')hitBtn.click();if(e.key==='s')standBtn.click();if(e.key==='d')doubleBtn.click();});
+    resetRound();
+    
+  </script>
+  <script>
+  // ... keep your variable declarations and functions above
+
+  function endRound() {
+    dealer.hidden = false;
+    showHands();
+
+    const pTotal = handTotal(player.cards);
+    let dTotal = handTotal(dealer.cards);
+
+    // Dealer draws to 17
+    while (dTotal < 17) {
+      dealer.cards.push(draw());
+      dTotal = handTotal(dealer.cards);
+    }
+    showHands();
+
+    let result = '';
+    const playerBJ = (player.cards.length === 2 && pTotal === 21);
+    const dealerBJ = (dealer.cards.length === 2 && dTotal === 21);
+
+    if (playerBJ && !dealerBJ) {
+      bank += bet * 1.5;
+      result = `Blackjack! You win $${(bet * 1.5).toFixed(2)}`;
+      showBlackjack();
+    } else if (!playerBJ && dealerBJ) {
+      bank -= bet;
+      result = `Dealer has Blackjack. You lose.`;
+      showResultOverlay('YOU LOSE!');
+    } else if (pTotal > 21) {
+      bank -= bet;
+      result = `Busted! You lose $${bet.toFixed(2)}`;
+      showResultOverlay('YOU LOSE!');
+    } else if (dTotal > 21) {
+      bank += bet;
+      result = `Dealer busted — you win $${bet.toFixed(2)}`;
+      showResultOverlay('YOU WIN!');
+    } else if (pTotal > dTotal) {
+      bank += bet;
+      result = `You win $${bet.toFixed(2)}`;
+      showResultOverlay('YOU WIN!');
+    } else if (pTotal < dTotal) {
+      bank -= bet;
+      result = `You lose $${bet.toFixed(2)}`;
+      showResultOverlay('YOU LOSE!');
+    } else {
+      result = `Push — bet returned.`;
+      showResultOverlay('PUSH!');
+    }
+
+    inRound = false;
+    hitBtn.disabled = true;
+    standBtn.disabled = true;
+    doubleBtn.disabled = true;
+    updateBank();
+    message.textContent = `${result} — Bank: $${bank.toFixed(2)}`;
+
+    if (bank <= 0) {
+      message.textContent += ' — You are broke. Press Reset $1000 to play again.';
+    }
+  }
+
+  // ... keep the rest of your code (placeBet, startRound, etc.) below
+</script>
+  <style>
+@media (max-width: 600px) {
+  html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: #064d2f; /* fallback background */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;  /* top align so content scrolls naturally */
+  overflow-x: hidden;       /* prevent horizontal scroll */
+}
+
+  .table-ui {
+    width: 100vw;
+    height: auto;
+    box-sizing: border-box;
+  }
+
+  .hud {
+    position: relative;      /* Remove absolute for small screens */
+    flex-direction: column;  /* Stack vertically */
+    gap: 12px;
+    align-items: center;
+    top: auto;
+    left: auto;
+    right: auto;
+    margin-top: 10px;
+  }
+
+  .bank, 
+  .bet-controls {
+    position: static;       /* Remove positioning offsets */
+    width: 90%;
+    text-align: center;
+    margin: 0;
+  }
+  .dealer-area {
+  position: absolute; /* or relative, depending on your layout */
+  top: 110px;          /* smaller value moves dealer closer to top */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;        /* keeps it above other elements */
+}
+
+  .bet-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .dealer-area {
+    position: relative;     /* Let it flow naturally */
+    margin-top: -100px;
+    font-size: 14px;
+  }
+
+  .players {
+        bottom: 150px;
+        gap: 10px;
+        transform: translateX(-50%) scale(0.85);
+      }
+
+  .seat {
+    width: 90px;
+    height: 120px;
+    padding: 4px;
+  }
+
+  .card {
+    width: 50px;
+    height: 70px;
+    font-size: 12px;
+  }
+
+  .controls {
+    position: relative;
+    margin-top: 200px;
+    flex-direction: row;
+    gap: 6px;
+    justify-content: center;
+    right: auto;
+    bottom: auto;
+    transform: none;
+  }
+
+  .controls .btn-large {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  .wrap {
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0px;
+    background: #0b5c32;
+    background-image: var(--table-bg);
+    background-size: cover;
+  }
+
+  .msg {
+    position: relative;
+    margin-top: 315px;
+    font-size: 13px;
+    text-align: center;
+    width: 90%;
+    bottom: 10px;
+  }
+  .bet-controls { 
+   flex-wrap: wrap;
+   justify-content: center;
+   gap: 8px; }
+}
+
+  </style>
+  
+  </body>
+
+</body>
+</html>
